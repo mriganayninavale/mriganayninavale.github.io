@@ -1,11 +1,9 @@
-/* Gold particle scene. One set of points that morphs between shapes as you scroll:
-   gyroid (hero), rings (work), helix (journey), lattice (archive), gyroid again (contact). */
 (function () {
   'use strict';
 
   var html = document.documentElement;
   var noop = function () {};
-  var Scene = { ok: false, start: noop, setShape: noop, setTheme: noop, setDim: noop, setVelocity: noop, renderNow: noop };
+  var Scene = { start: noop, setShape: noop, setTheme: noop, setDim: noop, setVelocity: noop, renderNow: noop };
   window.Scene = Scene;
 
   var canvas = document.getElementById('scene');
@@ -32,7 +30,6 @@
   var small = Math.min(window.innerWidth, window.innerHeight) < 700 || window.matchMedia('(pointer: coarse)').matches;
   var N = small ? 4600 : 9000;
 
-  /* ---------- Shape generators ---------- */
   function rnd(a, b) { return a + Math.random() * (b - a); }
   function norm(v) { var l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
   function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
@@ -48,7 +45,6 @@
     s.n[k] = nx; s.n[k + 1] = ny; s.n[k + 2] = nz;
   }
 
-  // Gyroid surface sin(kx)cos(ky) + sin(ky)cos(kz) + sin(kz)cos(kx) = 0, cut to a softened cube like the printed piece.
   function gyroid() {
     var s = make(), H = 1.32, k = 3.15, i = 0, guard = 0;
     while (i < N && guard < N * 80) {
@@ -72,7 +68,6 @@
     return s;
   }
 
-  // Eight orbits around a small core: one for each MA project.
   function rings() {
     var s = make(), i = 0, core = Math.floor(N * 0.1);
     for (; i < core; i++) {
@@ -82,7 +77,6 @@
     var R = [], tot = 0;
     for (var j = 0; j < 8; j++) { R.push(1.0 + j * 0.15); tot += R[j]; }
     for (j = 0; j < 8; j++) {
-      // Spread ring axes evenly over a sphere (Fibonacci).
       var yy = 1 - (j + 0.5) / 8 * 2, rr = Math.sqrt(1 - yy * yy), th = j * 2.39996;
       var axis = [Math.cos(th) * rr, yy, Math.sin(th) * rr];
       var b = perp(axis), u = b[0], v = b[1];
@@ -97,7 +91,6 @@
     return s;
   }
 
-  // Double helix with rungs, for the journey timeline.
   function helix() {
     var s = make(), i = 0, R = 1.0, Hh = 2.35, turns = 2.25, strands = Math.floor(N * 0.78), rungs = 24;
     var w = turns * Math.PI * 2 / (2 * Hh);
@@ -118,10 +111,8 @@
     return s;
   }
 
-  // Body-centred cubic lattice, the kind of strut structure used in metal 3D printing.
   function lattice() {
     var s = make(), i = 0, g = 1.1, struts = [], L = 0, nodes = [];
-    var key = function (a) { return a.join(','); };
     for (var x = -1; x <= 1; x++) for (var y = -1; y <= 1; y++) for (var z = -1; z <= 1; z++) {
       nodes.push([x * g, y * g, z * g]);
       if (x < 1) struts.push([[x * g, y * g, z * g], [(x + 1) * g, y * g, z * g]]);
@@ -134,7 +125,6 @@
         struts.push([c, [(x + o[0]) * g, (y + o[1]) * g, (z + o[2]) * g]]);
       });
     }
-    void key;
     struts.forEach(function (st) { st.len = Math.hypot(st[1][0] - st[0][0], st[1][1] - st[0][1], st[1][2] - st[0][2]); L += st.len; });
     var nodeCount = Math.floor(N * 0.12), strutCount = N - nodeCount;
     struts.forEach(function (st, si) {
@@ -168,8 +158,6 @@
   var G = gyroid();
   var SHAPES = { gyroid: G, rings: rings(), helix: helix(), lattice: lattice(), contact: G, about: G, scatter: scatter() };
 
-  // Where each shape sits on screen. x, y are fractions of the half-viewport; s is scale; o is opacity.
-  // m* values are used on narrow, portrait screens.
   var LAYOUT = {
     gyroid:  { x: 0.42, y: 0.1, s: 0.94, o: 1, rx: 0.42, rz: 0.12, mx: 0, my: 0.42, ms: 0.6, mo: 1 },
     about:   { x: -0.64, y: 0.17, s: 0.42, o: 0.65, rx: 0.42, rz: 0.12, mx: 0.62, my: 0.36, ms: 0.4, mo: 0.35 },
@@ -179,7 +167,6 @@
     contact: { x: 0.5, y: 0.04, s: 0.92, o: 1, rx: 0.42, rz: -0.1, mx: 0, my: 0.44, ms: 0.56, mo: 1 }
   };
 
-  /* ---------- Geometry and material ---------- */
   var geo = new THREE.BufferGeometry();
   var aFrom = new THREE.BufferAttribute(new Float32Array(N * 3), 3);
   var aTo = new THREE.BufferAttribute(new Float32Array(N * 3), 3);
@@ -251,7 +238,6 @@
   var camera = new THREE.PerspectiveCamera(35, 1, 0.1, 60);
   camera.position.z = 9;
 
-  /* ---------- State ---------- */
   var current = 'gyroid', started = false, dim = false, opMul = 1;
   var morphT = 1, morphDur = 1.7, morphing = false;
   var spin = 0, tiltX = 0, tiltY = 0, ptx = 0, pty = 0, vel = 0, scat = 0;
@@ -262,7 +248,6 @@
 
   function easeJS(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
 
-  // Freeze where every particle is right now, so a new morph starts from there.
   function snapshot() {
     var m = U.uMorph.value, sp = U.uSpread.value, F = aFrom.array, T = aTo.array, NF = aNFrom.array, NT = aNTo.array;
     for (var i = 0; i < N; i++) {
@@ -286,7 +271,6 @@
 
   function resize() {
     var w = window.innerWidth, h = window.innerHeight;
-    // Mobile browsers change height as the toolbar hides; ignore small height-only changes.
     if (w === W && Math.abs(h - H) < 160 && H) return;
     W = w; H = h; aspect = w / h;
     var pr = Math.min(window.devicePixelRatio || 1, small ? 1.75 : 2);
@@ -327,7 +311,6 @@
     var oT = started ? T.o * (dim ? 0 : 1) : 0;
     pos.o += (oT - pos.o) * ko;
 
-    // Scroll speed spins and loosens the shape a little.
     vel *= Math.exp(-dt * 4);
     var scT = Math.min(Math.abs(vel) * 0.006, 0.4);
     scat += (scT - scat) * (1 - Math.exp(-dt * 6));
@@ -342,12 +325,9 @@
     points.rotation.set(pos.rx + tiltX, spin + tiltY, pos.rz);
     U.uOpacity.value = pos.o * opMul;
 
-    if (pos.o < 0.004 && oT === 0) return; // fully hidden behind an overlay: skip drawing
+    if (pos.o < 0.004 && oT === 0) return;
     renderer.render(scene, camera);
   }
-
-  /* ---------- Public API ---------- */
-  Scene.ok = true;
 
   Scene.start = function () {
     if (started) return;
